@@ -3,6 +3,7 @@ from flask import Flask, request, jsonify, abort
 from sqlalchemy import exc
 import json
 from flask_cors import CORS
+from functools import wraps
 
 from .database.models import db_drop_and_create_all, setup_db, Drink
 from .auth.auth import AuthError, requires_auth
@@ -11,15 +12,55 @@ app = Flask(__name__)
 setup_db(app)
 CORS(app)
 
-'''
-@TODO uncomment the following line to initialize the datbase
-!! NOTE THIS WILL DROP ALL RECORDS AND START YOUR DB FROM SCRATCH
-!! NOTE THIS MUST BE UNCOMMENTED ON FIRST RUN
-!! Running this funciton will add one
-'''
-# db_drop_and_create_all()
+
+#uncomment the following line to initialize the datbase
+#THIS WILL DROP ALL RECORDS AND START YOUR DB FROM SCRATCH
+#THIS MUST BE UNCOMMENTED ON FIRST RUN
+#Running this funciton will add one
+
+db_drop_and_create_all()
 
 # ROUTES
+"""
+testing out header requests using postman
+this is just practice
+"""
+
+def headers():
+    # @TODO unpack the request header
+    auth = request.headers['Authorization']
+    split_auth = auth.split(" ")
+    
+    if "Authorization" not in request.headers:
+        abort(401)
+    
+    elif len(split_auth) != 2:
+        abort(401)
+    
+    print(split_auth[1])
+    return 'not implemented'
+
+def get_header(f):
+    @wraps(f)
+    def wrapper(*args, **kwargs):
+        jwt = headers()
+        
+        return f(jwt, *args, **kwargs)
+    return wrapper
+
+@app.route('/headers')
+@get_header
+def test_header(jwt):
+    print(jwt)
+    return "Not implemented"
+
+
+
+
+@app.route('/home')
+def test():
+    return "Test worked!"
+
 '''
 @TODO implement endpoint
     GET /drinks
