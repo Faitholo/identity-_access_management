@@ -25,9 +25,9 @@ API_AUDIENCE = os.environ.get('API_AUDIENCE')
 #THIS MUST BE UNCOMMENTED ON FIRST RUN
 #Running this funciton will add one
 
-db_drop_and_create_all()
+#db_drop_and_create_all()
 
-# ROUTES
+
 """
 testing out header requests using postman
 this is just practice
@@ -126,23 +126,35 @@ def verify_decode_jwt(token):
             }, 400)
 
 
-def requires_auth(f):
-    @wraps(f)
-    def wrapper(*args, **kwargs):
-        token = get_token_auth_header()
-        try:
-            payload = verify_decode_jwt(token)
-        except:
-            abort(401)
-        return f(payload, *args, **kwargs)
+def check_permissions(permission, payload):
+    if 'permissions' not in payload:
+        abort(400)
 
-    return wrapper
+    if permission not in payload['permissions']:
+        abort(403)
+    return True
 
-@app.route('/home')
-@requires_auth
-def headers(payload):
-    print(payload)
-    return 'Access Granted'
+
+def requires_auth(permission=''):
+    def requires_auth_decorator(f):
+        @wraps(f)
+        def wrapper(*args, **kwargs):
+            jwt = get_token_auth_header()
+            try:
+                payload = verify_decode_jwt(jwt)
+            except:
+                abort(401)
+                
+            check_permissions(permission, payload)
+            
+            return f(payload, *args, **kwargs)
+
+        return wrapper
+    return requires_auth_decorator
+
+
+
+# ROUTES
 
 
 '''
@@ -154,6 +166,16 @@ def headers(payload):
         or appropriate status code indicating reason for failure
 '''
 
+@app.route('/drinks', methods=['GET'])
+def drinks():
+    drinks = Drink.query.all()
+    
+    drink = [drink.long() for drink in drinks]
+    return jsonify({
+        "success": True,
+        "drinks": drink
+    })
+
 
 '''
 @TODO implement endpoint
@@ -164,16 +186,17 @@ def headers(payload):
         or appropriate status code indicating reason for failure
 '''
 
+@app.route('/drinks-detail', methods=['GET'])
+@requires_auth('get:drinks-detail')
+def get_drinks(payload):
 
-'''
-@TODO implement endpoint
-    POST /drinks
-        it should create a new row in the drinks table
-        it should require the 'post:drinks' permission
-        it should contain the drink.long() data representation
-    returns status code 200 and json {"success": True, "drinks": drink} where drink an array containing only the newly created drink
-        or appropriate status code indicating reason for failure
-'''
+    drinks = Drink.query.all()
+    
+    drink = [drink.long() for drink in drinks]
+    return jsonify({
+        "success": True,
+        "drinks": drink
+    })
 
 
 '''
@@ -188,6 +211,63 @@ def headers(payload):
         or appropriate status code indicating reason for failure
 '''
 
+@app.route('/drinks/<id>', methods=['GET'])
+@requires_auth('patch:drinks')
+def get_drinks_id(payload, id):
+    drink = Drink.query.get(id)
+    
+    return jsonify({
+        "success": True,
+        "drink": [drink.long()]
+    })
+
+
+@app.route('/drinks/<id>', methods=['PATCH'])
+@requires_auth('patch:drinks')
+def update_drinks(payload, id):
+    drinks = Drink.query.get(id)
+    
+    body = request.get_json()
+    title = body.get("title")
+    recipe = body.get("recipe")
+
+    drink = drinks(title=title, recipe=json.dumps(recipe)) 
+    
+    drink.update()
+    
+    return jsonify({
+        "success": True,
+        "drinks": drink
+    })
+
+
+
+'''
+@TODO implement endpoint
+    POST /drinks
+        it should create a new row in the drinks table
+        it should require the 'post:drinks' permission
+        it should contain the drink.long() data representation
+    returns status code 200 and json {"success": True, "drinks": drink} where drink an array containing only the newly created drink
+        or appropriate status code indicating reason for failure
+'''
+
+@app.route('/drinks', methods=['POST'])
+@requires_auth('post:drinks')
+def add_drinks(payload):
+
+    body = request.get_json()
+    title = body.get("title")
+    recipe = body.get("recipe")
+
+    drink = Drink(title=title, recipe=json.dumps(recipe)) 
+    
+    drink.insert()
+    return jsonify({
+        "success": True,
+        "drink": [drink.long()]
+    })
+
 
 '''
 @TODO implement endpoint
@@ -199,6 +279,19 @@ def headers(payload):
     returns status code 200 and json {"success": True, "delete": id} where id is the id of the deleted record
         or appropriate status code indicating reason for failure
 '''
+
+@app.route('/drinks/<id>', methods=['DELETE'])
+@requires_auth('delete:drinks')
+def remove_drinks(payload, id):
+
+    drink = Drink.query.get(id)
+    
+    drink.delete()
+    
+    return jsonify({
+        "success": True
+    })
+
 
 
 # Error Handling
