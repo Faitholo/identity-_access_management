@@ -165,6 +165,9 @@ def requires_auth(permission=''):
 
 @app.route('/drinks', methods=['GET'])
 def all_drinks():
+    
+    # Query the database to retrieve all drink.short()
+    # Public endpoint, requires no authorization     
     try:
         all_drinks = Drink.query.all()
         drinks = [drink.short() for drink in all_drinks]
@@ -190,6 +193,9 @@ def all_drinks():
 @app.route('/drinks-detail', methods=['GET'])
 @requires_auth('get:drinks-detail')
 def get_drinks(payload):
+    
+    # Query the database to retrieve all drink.long
+    # Requires 'get:drinks-detail' authorization
     try:
         drinks = Drink.query.all()
     
@@ -215,42 +221,29 @@ def get_drinks(payload):
         or appropriate status code indicating reason for failure
 '''
 
-@app.route('/drinks/<id>', methods=['GET'])
-@requires_auth('patch:drinks')
-def get_drinks_id(payload, id):
-    try:
-        drink = Drink.query.get(id)
-    
-    except:
-        abort(400)
-        
-    return jsonify({
-        "success": True,
-        "drink": [drink.long()]
-    })
-
-
 @app.route('/drinks/<id>', methods=['PATCH'])
 @requires_auth('patch:drinks')
 def update_drinks(payload, id):
     
-    body = request.get_json()
-    
+    # Requires 'patch:drinks' authorization
+    # Query the database to retrieve the object with the id requested
     drink = Drink.query.filter(Drink.id == id).one_or_none()
 
-
+    # Get the json body object
+    body = request.get_json()
     new_title = body.get("title")
     new_recipe = body.get("recipe")
     
+    # Assign the values to the database to update with new changes
     drink = Drink(title=new_title, recipe=json.dumps(new_recipe))
 
+    # Commit changes
     drink.update()
 
     return jsonify({
         "success": True,
         "drinks": [drink.long()]
     }, 200)
-
 
 
 '''
@@ -267,13 +260,17 @@ def update_drinks(payload, id):
 @requires_auth('post:drinks')
 def add_drinks(payload):
     
+    # Requires 'post:drinks' authorization
+    # Get the json body object
     body = request.get_json()
     title = body.get("title")
     recipe = body.get("recipe")
     
     try:
+        # Assign the values to the database to create new objects
         drink = Drink(title=title, recipe=json.dumps(recipe)) 
         
+        # Commit to the database
         drink.insert()
         
     except:
@@ -301,9 +298,12 @@ def add_drinks(payload):
 @requires_auth('delete:drinks')
 def remove_drinks(payload, id):
 
+    # Requires 'delete:drinks' authorization
+    # Query the database to retrieve the object with the id requested
     drink = Drink.query.get(id)
     
     try:
+        # Delete the object and commit changes
         drink.delete()
         
     except:
@@ -313,7 +313,6 @@ def remove_drinks(payload, id):
         "success": True,
         "delete": id
     }, 200)
-
 
 
 # Error Handling
@@ -352,7 +351,7 @@ def not_found(error):
         "message": "Resource not found"
         }), 404
 
-'''
+
 @app.errorhandler(AuthError)
 def handle_auth_error(ex):
     response = jsonify(ex.error)
@@ -362,7 +361,7 @@ def handle_auth_error(ex):
         "error": ex.status_code,
         "message": response
     })
-'''
+
 
 '''
 Example error handling for unprocessable entity
