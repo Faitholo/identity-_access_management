@@ -168,12 +168,15 @@ def requires_auth(permission=''):
 
 @app.route('/drinks', methods=['GET'])
 def drinks():
-    drinks = Drink.query.all()
-    
-    drink = [drink.long() for drink in drinks]
+    try:
+        drink = Drink.query.all()
+        
+        drinks = [drinks.short() for drinks in drink]
+    except bad_request:
+        abort(400)
     return jsonify({
         "success": True,
-        "drinks": drink
+        "drinks": drinks
     })
 
 
@@ -189,10 +192,13 @@ def drinks():
 @app.route('/drinks-detail', methods=['GET'])
 @requires_auth('get:drinks-detail')
 def get_drinks(payload):
-
-    drinks = Drink.query.all()
+    try:
+        drinks = Drink.query.all()
     
-    drink = [drink.long() for drink in drinks]
+        drink = [drink.long() for drink in drinks]
+    except unprocessable:
+        abort(422)
+
     return jsonify({
         "success": True,
         "drinks": drink
@@ -214,8 +220,12 @@ def get_drinks(payload):
 @app.route('/drinks/<id>', methods=['GET'])
 @requires_auth('patch:drinks')
 def get_drinks_id(payload, id):
-    drink = Drink.query.get(id)
+    try:
+        drink = Drink.query.get(id)
     
+    except bad_request:
+        abort(400)
+        
     return jsonify({
         "success": True,
         "drink": [drink.long()]
@@ -225,20 +235,25 @@ def get_drinks_id(payload, id):
 @app.route('/drinks/<id>', methods=['PATCH'])
 @requires_auth('patch:drinks')
 def update_drinks(payload, id):
-    drinks = Drink.query.get(id)
     
     body = request.get_json()
-    title = body.get("title")
-    recipe = body.get("recipe")
+    
+    drink = Drink.query.filter(Drink.id == id).one_or_none()
 
-    drink = drinks(title=title, recipe=json.dumps(recipe)) 
+
+    new_title = body.get("title")
+    new_recipe = body.get("recipe")
     
+    drink.title = new_title
+    drink.recipe = json.dumps(new_recipe)
+    
+
     drink.update()
-    
+
     return jsonify({
         "success": True,
-        "drinks": drink
-    })
+        "drinks": [drink.long()]
+    }, 200)
 
 
 
@@ -255,18 +270,24 @@ def update_drinks(payload, id):
 @app.route('/drinks', methods=['POST'])
 @requires_auth('post:drinks')
 def add_drinks(payload):
-
+    
     body = request.get_json()
     title = body.get("title")
     recipe = body.get("recipe")
-
-    drink = Drink(title=title, recipe=json.dumps(recipe)) 
     
-    drink.insert()
+    try:
+        drinks = Drink(title=title, recipe=json.dumps(recipe)) 
+        
+        drinks.insert()
+        
+    except AuthError:
+        abort()
+        
+        
     return jsonify({
         "success": True,
-        "drink": [drink.long()]
-    })
+        "drink": [drink.long() for drink in drinks]
+    }, 200)
 
 
 '''
@@ -286,19 +307,20 @@ def remove_drinks(payload, id):
 
     drink = Drink.query.get(id)
     
-    drink.delete()
+    try:
+        drink.delete()
+        
+    except unprocessable:
+        abort(422)
     
     return jsonify({
-        "success": True
-    })
+        "success": True,
+        "delete": id
+    }, 200)
 
 
 
 # Error Handling
-'''
-Example error handling for unprocessable entity
-'''
-
 
 @app.errorhandler(422)
 def unprocessable(error):
@@ -308,6 +330,47 @@ def unprocessable(error):
         "message": "unprocessable"
     }), 422
 
+
+@app.errorhandler(400)
+def bad_request(error):
+    return jsonify({
+        "success": False,
+        "error": 400,
+        "message": "Bad request"
+        }), 400
+
+
+@app.errorhandler(405)
+def not_found(error):
+    return jsonify({
+        "success": False,
+        "error": 405,
+        "message": "Method not allowed"
+        }), 405
+    
+
+@app.errorhandler(404)
+def not_found(error):
+    return jsonify({
+        "success": False,
+        "error": 404,
+        "message": "Resource not found"
+        }), 404
+
+@app.errorhandler(AuthError)
+def handle_auth_error(ex):
+    response = jsonify(ex.error)
+    response.status_code = ex.status_code
+    return jsonify({
+        "success": False,
+        "error": ex.status_code,
+        "message": response
+    })
+
+
+'''
+Example error handling for unprocessable entity
+'''
 
 '''
 @TODO implement error handlers using the @app.errorhandler(error) decorator
@@ -319,7 +382,6 @@ def unprocessable(error):
                     }), 404
 
 '''
-
 '''
 @TODO implement error handler for 404
     error handler should conform to general task above
