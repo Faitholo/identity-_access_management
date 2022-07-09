@@ -9,7 +9,7 @@ from urllib.request import urlopen
 from dotenv import load_dotenv
 load_dotenv()
 
-from .database.models import db_drop_and_create_all, setup_db, Drink
+from .database.models import db_drop_and_create_all, setup_db, Drink, db
 from .auth.auth import AuthError, requires_auth
 
 app = Flask(__name__)
@@ -25,7 +25,7 @@ API_AUDIENCE = os.environ.get('API_AUDIENCE')
 #THIS MUST BE UNCOMMENTED ON FIRST RUN
 #Running this funciton will add one
 
-#db_drop_and_create_all()
+db_drop_and_create_all()
 
 
 """
@@ -44,10 +44,7 @@ def get_token_auth_header():
     """
     auth = request.headers.get('Authorization', None)
     if not auth:
-        raise AuthError({
-            'code': 'authorization_header_missing',
-            'description': 'Authorization header is expected.'
-        }, 401)
+        abort(401)
 
     parts = auth.split()
     if parts[0].lower() != 'bearer':
@@ -167,17 +164,18 @@ def requires_auth(permission=''):
 '''
 
 @app.route('/drinks', methods=['GET'])
-def drinks():
+def all_drinks():
     try:
-        drink = Drink.query.all()
-        
-        drinks = [drinks.short() for drinks in drink]
-    except bad_request:
-        abort(400)
+        all_drinks = Drink.query.all()
+        drinks = [drink.short() for drink in all_drinks]
+    
+    except:
+        abort(422)
+
     return jsonify({
         "success": True,
         "drinks": drinks
-    })
+    }, 200)
 
 
 '''
@@ -196,8 +194,8 @@ def get_drinks(payload):
         drinks = Drink.query.all()
     
         drink = [drink.long() for drink in drinks]
-    except unprocessable:
-        abort(422)
+    except:
+        abort(400)
 
     return jsonify({
         "success": True,
@@ -223,7 +221,7 @@ def get_drinks_id(payload, id):
     try:
         drink = Drink.query.get(id)
     
-    except bad_request:
+    except:
         abort(400)
         
     return jsonify({
@@ -244,9 +242,7 @@ def update_drinks(payload, id):
     new_title = body.get("title")
     new_recipe = body.get("recipe")
     
-    drink.title = new_title
-    drink.recipe = json.dumps(new_recipe)
-    
+    drink = Drink(title=new_title, recipe=json.dumps(new_recipe))
 
     drink.update()
 
@@ -276,17 +272,17 @@ def add_drinks(payload):
     recipe = body.get("recipe")
     
     try:
-        drinks = Drink(title=title, recipe=json.dumps(recipe)) 
+        drink = Drink(title=title, recipe=json.dumps(recipe)) 
         
-        drinks.insert()
+        drink.insert()
         
-    except AuthError:
-        abort()
+    except:
+        abort(400)
         
         
     return jsonify({
         "success": True,
-        "drink": [drink.long() for drink in drinks]
+        "drink": [drink.long()]
     }, 200)
 
 
@@ -310,7 +306,7 @@ def remove_drinks(payload, id):
     try:
         drink.delete()
         
-    except unprocessable:
+    except:
         abort(422)
     
     return jsonify({
@@ -321,7 +317,6 @@ def remove_drinks(payload, id):
 
 
 # Error Handling
-
 @app.errorhandler(422)
 def unprocessable(error):
     return jsonify({
@@ -357,6 +352,7 @@ def not_found(error):
         "message": "Resource not found"
         }), 404
 
+'''
 @app.errorhandler(AuthError)
 def handle_auth_error(ex):
     response = jsonify(ex.error)
@@ -366,7 +362,7 @@ def handle_auth_error(ex):
         "error": ex.status_code,
         "message": response
     })
-
+'''
 
 '''
 Example error handling for unprocessable entity
